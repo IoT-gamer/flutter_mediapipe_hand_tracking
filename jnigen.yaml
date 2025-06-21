@@ -1,0 +1,19 @@
+# jnigen.yaml
+
+source_path:
+  - android/app/src/main/kotlin
+
+# Provide BOTH paths: one for Java classes and one for Kotlin classes.
+class_path:
+  # Path for compiled Java files (like plugins)
+  # - build/app/intermediates/javac/debug/classes
+  # Path for compiled Kotlin files (this code)
+  - build/app/tmp/kotlin-classes/debug
+
+classes:
+  - com.example.flutter_mediapipe_hand_tracking.MyHandLandmarker
+
+output:
+  dart:
+    path: lib/hand_landmarker_bindings.dart
+    structure: single_file
