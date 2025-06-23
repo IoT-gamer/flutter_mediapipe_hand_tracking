@@ -12,7 +12,6 @@ class MyHandLandmarker(private val context: Context) {
 
     private var handLandmarker: HandLandmarker? = null
 
-    // initialize() is unchanged
     fun initialize() {
         val baseOptions = BaseOptions.builder()
             .setModelAssetPath("hand_landmarker.task")
