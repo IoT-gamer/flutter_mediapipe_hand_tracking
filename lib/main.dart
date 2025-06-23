@@ -110,7 +110,8 @@ class _HandTrackerViewState extends State<HandTrackerView> {
   List<List<Map<String, double>>> _landmarks = [];
   bool _isProcessing = false;
   int _frameCounter = 0;
-  final int _skipFrames = 1; // Process every 1st frame
+  // Process one frame every `frameProcessingInterval` frames.
+  final int frameProcessingInterval = 1; //
 
   // The stateful isolate that will handle our background processing
   final _isolate = StatefulIsolate(
@@ -144,8 +145,8 @@ class _HandTrackerViewState extends State<HandTrackerView> {
 
   void _processCameraImage(CameraImage image) {
     _frameCounter++;
-    if (_frameCounter % _skipFrames != 0) {
-      return; // Process every _skipFrames number of frames to reduce load
+    if (_frameCounter % frameProcessingInterval != 0) {
+      return; // Skip this frame to reduce load
     }
     if (_isProcessing) return;
     _isProcessing = true;

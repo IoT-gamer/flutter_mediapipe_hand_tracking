@@ -114,7 +114,7 @@ flutter build apk --debug
 In `lib/main.dart`, you can select which camera to use, number of frames to skip etc.:
 
 * **Camera Selection**: Change the `CameraLensDirection` in the `_initializeCamera()` from `CameraLensDirection.front` to `CameraLensDirection.back` if you want to use the rear camera instead of the front camera.
-* **Frame Skipping**: Adjust the `_skipFrames` variable in `_HandTrackerViewState` to control how many frames to skip for processing. This can help reduce CPU usage and improve performance, especially on lower-end devices.
+* **Frame Skipping**: Adjust the `_frameProcessingInterval` variable in `_HandTrackerViewState` to control how many frames to skip for processing. For example, an interval of 2 means every second frame is processed, This can help reduce CPU usage and improve performance, especially on lower-end devices.
 
 
 ## License
