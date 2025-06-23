@@ -2,13 +2,77 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';
+
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:integral_isolates/integral_isolates.dart';
 import 'package:jni/jni.dart';
+
 import 'hand_landmarker_bindings.dart';
 
 late List<CameraDescription> _cameras;
 late MyHandLandmarker _landmarker;
+
+// This data class is used to pass all necessary info to the background isolate.
+class IsolateData {
+  final Uint8List yPlane;
+  final Uint8List uPlane;
+  final Uint8List vPlane;
+  final int yRowStride;
+  final int uvRowStride;
+  final int uvPixelStride;
+  final int width;
+  final int height;
+
+  IsolateData(CameraImage image)
+    : yPlane = image.planes[0].bytes,
+      uPlane = image.planes[1].bytes,
+      vPlane = image.planes[2].bytes,
+      yRowStride = image.planes[0].bytesPerRow,
+      uvRowStride = image.planes[1].bytesPerRow,
+      uvPixelStride = image.planes[1].bytesPerPixel!,
+      height = image.height,
+      width = image.width;
+}
+
+/// This is the function that will run on the background isolate.
+/// It performs the heavy YUV to RGBA conversion.
+Uint8List convertYUVtoRGBA(IsolateData isolateData) {
+  final int width = isolateData.width;
+  final int height = isolateData.height;
+  final int yRowStride = isolateData.yRowStride;
+  final int uvRowStride = isolateData.uvRowStride;
+  final int uvPixelStride = isolateData.uvPixelStride;
+
+  final yPlane = isolateData.yPlane;
+  final uPlane = isolateData.uPlane;
+  final vPlane = isolateData.vPlane;
+
+  final rgbaBytes = Uint8List(width * height * 4);
+  int writeIndex = 0;
+
+  for (int y = 0; y < height; y++) {
+    for (int x = 0; x < width; x++) {
+      final int uvIndex =
+          uvPixelStride * (x / 2).floor() + uvRowStride * (y / 2).floor();
+      final int index = y * yRowStride + x;
+
+      final yp = yPlane[index];
+      final up = uPlane[uvIndex];
+      final vp = vPlane[uvIndex];
+
+      int r = (yp + 1.402 * (vp - 128)).round();
+      int g = (yp - 0.344136 * (up - 128) - 0.714136 * (vp - 128)).round();
+      int blue = (yp + 1.772 * (up - 128)).round();
+
+      rgbaBytes[writeIndex++] = r.clamp(0, 255);
+      rgbaBytes[writeIndex++] = g.clamp(0, 255);
+      rgbaBytes[writeIndex++] = blue.clamp(0, 255);
+      rgbaBytes[writeIndex++] = 255; // Alpha value (fully opaque)
+    }
+  }
+  return rgbaBytes;
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -46,7 +110,12 @@ class _HandTrackerViewState extends State<HandTrackerView> {
   List<List<Map<String, double>>> _landmarks = [];
   bool _isProcessing = false;
   int _frameCounter = 0;
-  final int _skipFrames = 5; // Process every 5th frame
+  final int _skipFrames = 1; // Process every 1st frame
+
+  // The stateful isolate that will handle our background processing
+  final _isolate = StatefulIsolate(
+    backpressureStrategy: ReplaceBackpressureStrategy(),
+  );
 
   @override
   void initState() {
@@ -55,7 +124,6 @@ class _HandTrackerViewState extends State<HandTrackerView> {
   }
 
   void _initializeCamera() {
-    // Note: To test the other camera, change this to CameraLensDirection.back
     final camera = _cameras.firstWhere(
       (cam) => cam.lensDirection == CameraLensDirection.front,
       orElse: () => _cameras.first,
@@ -81,47 +149,18 @@ class _HandTrackerViewState extends State<HandTrackerView> {
     }
     if (_isProcessing) return;
     _isProcessing = true;
+    // The integral_isolates package has built-in backpressure handling.
 
-    try {
-      final yPlane = image.planes[0].bytes;
-      final uPlane = image.planes[1].bytes;
-      final vPlane = image.planes[2].bytes;
-
-      final int yRowStride = image.planes[0].bytesPerRow;
-      final int uvRowStride = image.planes[1].bytesPerRow;
-      final int uvPixelStride = image.planes[1].bytesPerPixel!;
-      final int width = image.width;
-      final int height = image.height;
-
-      // print('Image size width: $width, height: $height');
-
-      final rgbaBytes = Uint8List(width * height * 4);
-      int writeIndex = 0;
-      for (int y = 0; y < height; y++) {
-        for (int x = 0; x < width; x++) {
-          final int uvIndex =
-              uvPixelStride * (x / 2).floor() + uvRowStride * (y / 2).floor();
-          final int index = y * yRowStride + x;
-          final yp = yPlane[index];
-          final up = uPlane[uvIndex];
-          final vp = vPlane[uvIndex];
-          int r = (yp + 1.402 * (vp - 128)).round();
-          int g = (yp - 0.344136 * (up - 128) - 0.714136 * (vp - 128)).round();
-          int blue = (yp + 1.772 * (up - 128)).round();
-          rgbaBytes[writeIndex++] = r.clamp(0, 255);
-          rgbaBytes[writeIndex++] = g.clamp(0, 255);
-          rgbaBytes[writeIndex++] = blue.clamp(0, 255);
-          rgbaBytes[writeIndex++] = 255;
-        }
-      }
-
+    // Run the conversion on the background isolate
+    _isolate.compute(convertYUVtoRGBA, IsolateData(image)).then((rgbaBytes) {
+      // This code runs on the main thread when the conversion is complete
       final byteBuffer = JByteBuffer.fromList(rgbaBytes);
       final rotation = _controller!.description.sensorOrientation;
 
       final resultJString = _landmarker.detect(
         byteBuffer,
-        width,
-        height,
+        image.width,
+        image.height,
         rotation,
       );
 
@@ -137,16 +176,17 @@ class _HandTrackerViewState extends State<HandTrackerView> {
           }).toList();
         });
       }
+
       resultJString.release();
       byteBuffer.release();
-    } finally {
       _isProcessing = false;
-    }
+    });
   }
 
   @override
   void dispose() {
     _controller?.dispose();
+    _isolate.dispose(); // Always dispose the isolate
     super.dispose();
   }
 
