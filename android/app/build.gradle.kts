@@ -48,11 +48,4 @@ dependencies {
 
     // MediaPipe Vision using Kotlin DSL
     implementation("com.google.mediapipe:tasks-vision:0.10.14") // Check for the latest version
-
-    // CameraX for camera access
-    val cameraxVersion = "1.3.1"
-    implementation("androidx.camera:camera-core:$cameraxVersion")
-    implementation("androidx.camera:camera-camera2:$cameraxVersion")
-    implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
-    implementation("androidx.camera:camera-view:$cameraxVersion")
 }
