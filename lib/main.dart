@@ -46,7 +46,7 @@ class _HandTrackerViewState extends State<HandTrackerView> {
   List<List<Map<String, double>>> _landmarks = [];
   bool _isProcessing = false;
   int _frameCounter = 0;
-  final int _skipFrames = 3; // Process every 3rd frame
+  final int _skipFrames = 5; // Process every 5th frame
 
   @override
   void initState() {
