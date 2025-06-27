@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:integral_isolates/integral_isolates.dart';
 import 'package:jni/jni.dart';
 
@@ -76,6 +77,7 @@ Uint8List convertYUVtoRGBA(IsolateData isolateData) {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   _cameras = await availableCameras();
 
   final contextRef = Jni.getCachedApplicationContext();
