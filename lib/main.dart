@@ -200,39 +200,31 @@ class _HandTrackerViewState extends State<HandTrackerView> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    // Get the size of the camera preview in logical pixels
     final previewSize = controller.value.previewSize!;
+    final previewAspectRatio = previewSize.height / previewSize.width;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Live Hand Tracking')),
-      body: Stack(
-        // Use a Stack to overlay the preview and the painter
-        children: [
-          // 1. The camera preview will fill the screen, potentially being cropped
-          Positioned.fill(child: CameraPreview(controller)),
-
-          // 2. The FittedBox will scale our painter to fit correctly over the preview
-          FittedBox(
-            // BoxFit.contain ensures the aspect ratio is preserved
-            fit: BoxFit.contain,
-            child: SizedBox(
-              // Create a SizedBox with the camera's resolution.
-              // IMPORTANT: Swap width and height because the camera's
-              // native orientation is landscape, but the preview is portrait.
-              width: previewSize.height,
-              height: previewSize.width,
-              child: CustomPaint(
-                // The painter now draws on a canvas that has the exact same
-                // size and aspect ratio as the camera image.
+      body: Center(
+        child: AspectRatio(
+          aspectRatio: previewAspectRatio,
+          child: Stack(
+            children: [
+              CameraPreview(controller),
+              CustomPaint(
+                // Tell the painter to fill the available space
+                size: Size.infinite,
                 painter: LandmarkPainter(
                   hands: _landmarks,
+                  // Pass the camera's resolution explicitly
+                  previewSize: previewSize,
                   lensDirection: controller.description.lensDirection,
                   sensorOrientation: controller.description.sensorOrientation,
                 ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -241,65 +233,68 @@ class _HandTrackerViewState extends State<HandTrackerView> {
 class LandmarkPainter extends CustomPainter {
   LandmarkPainter({
     required this.hands,
+    required this.previewSize,
     required this.lensDirection,
     required this.sensorOrientation,
   });
 
   final List<List<Map<String, double>>> hands;
+  final Size previewSize;
   final CameraLensDirection lensDirection;
   final int sensorOrientation;
 
   @override
   void paint(Canvas canvas, Size size) {
+    final scale = size.width / previewSize.height;
+
     final paint = Paint()
       ..color = Colors.red
-      ..strokeWidth = 8
+      ..strokeWidth = 8 / scale
       ..strokeCap = StrokeCap.round;
 
     final linePaint = Paint()
       ..color = Colors.lightBlueAccent
-      ..strokeWidth = 4;
+      ..strokeWidth = 4 / scale;
 
     canvas.save();
 
     final center = Offset(size.width / 2, size.height / 2);
-    final rotationAngle = sensorOrientation * math.pi / 180;
-
     canvas.translate(center.dx, center.dy);
+    canvas.rotate(sensorOrientation * math.pi / 180);
 
-    // // Apply the base rotation for all cameras
-    canvas.rotate(rotationAngle);
-
-    // For the front camera, we need to apply special transformations
     if (lensDirection == CameraLensDirection.front) {
-      // Flip horizontally
       canvas.scale(-1, 1);
-      // Apply an additional 180-degree rotation to correct the orientation
       canvas.rotate(math.pi);
     }
 
-    canvas.translate(-center.dy, -center.dx);
-    // print('Canvas size width: ${size.width}, height: ${size.height}');
+    canvas.scale(scale);
 
-    // Drawing logic
-    for (var hand in hands) {
-      for (var landmark in hand) {
-        canvas.drawCircle(
-          Offset(landmark['x']! * size.height, landmark['y']! * size.width),
-          8,
-          paint,
-        );
+    // Correctly assign logicalWidth to the sensor's width and logicalHeight to the sensor's height.
+    final logicalWidth = previewSize.width;
+    final logicalHeight = previewSize.height;
+
+    for (final hand in hands) {
+      for (final landmark in hand) {
+        // Now dx is scaled by width, and dy is scaled by height.
+        final dx = (landmark['x']! - 0.5) * logicalWidth;
+        final dy = (landmark['y']! - 0.5) * logicalHeight;
+        canvas.drawCircle(Offset(dx, dy), 8 / scale, paint);
       }
-      for (var connection in HandLandmarkConnections.connections) {
+      for (final connection in HandLandmarkConnections.connections) {
         final start = hand[connection[0]];
         final end = hand[connection[1]];
+        final startDx = (start['x']! - 0.5) * logicalWidth;
+        final startDy = (start['y']! - 0.5) * logicalHeight;
+        final endDx = (end['x']! - 0.5) * logicalWidth;
+        final endDy = (end['y']! - 0.5) * logicalHeight;
         canvas.drawLine(
-          Offset(start['x']! * size.height, start['y']! * size.width),
-          Offset(end['x']! * size.height, end['y']! * size.width),
+          Offset(startDx, startDy),
+          Offset(endDx, endDy),
           linePaint,
         );
       }
     }
+
     canvas.restore();
   }
 
