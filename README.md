@@ -6,8 +6,10 @@ A Flutter project that demonstrates live hand landmark detection using Google's 
 
 This repository serves as a **proof-of-concept** and a starting point for developers looking to integrate native Android ML libraries into their Flutter applications, specifically for functionalities not yet available through official Flutter plugins.
 
-## TODO: create a plugin
+## Plugin information
 This project is not a complete plugin but rather a demonstration of how to use MediaPipe's hand tracking capabilities in a Flutter app. It provides a working example of how to call native Android code from Flutter using JNI and JNIgen, and how to render the results in the Flutter UI.
+
+A plugin has been created to make it easier to use this code in your own projects. You can find the plugin at [hand_landmarker](https://pub.dev/packages/hand_landmarker).
 
 <br/>
 
