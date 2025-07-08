@@ -107,6 +107,7 @@ You can easily customize the hand detection parameters in `android/app/src/main/
 
 * **Number of Hands**: Change `setNumHands(2)` to `1` if you only need to track one hand.
 * **Detection Confidence**: Adjust `.setMinHandDetectionConfidence(0.5f)` to a higher value (e.g., `0.6f`) for more reliable detections, or lower for more sensitivity.
+* **Delegate Selection**: Change `.setDelegate(Delegate.GPU)` for accelerated inference performace or use `.setDelegate(Delegate.CPU)`
 
 Changes to kotlin files require re-building the apk:
 ```bash
